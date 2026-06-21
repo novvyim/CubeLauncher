@@ -11,7 +11,7 @@
   CubeLauncher is designed as the ultimate bridge between complex console tools and a highly accessible, user-friendly UI. It creates a fully local, isolated environment for your Minecraft servers, taking the friction out of server configuration so you can focus entirely on gameplay and development.
 
   <p align="center">
-    <img src="screenshots/dashboard.png" alt="CubeLauncher Dashboard" width="700">
+    <img src="public/dashboard.png" alt="CubeLauncher Dashboard" width="700">
   </p>
 
   ## Target Audience
@@ -26,14 +26,14 @@
   - **Isolated Architecture:** Keep instances strictly separated to prevent plugin and file conflicts between different server profiles.
 
   <p align="center">
-    <img src="screenshots/stats.png" alt="CubeLauncher Stats" width="700">
+    <img src="public/stats.png" alt="CubeLauncher Stats" width="700">
   </p>
 
   ## Architecture & Logic
   At its core, CubeLauncher relies on a robust Client-Server desktop architecture. The modern React frontend handles state and rendering, constantly communicating with the Node.js native background processes via secure Electron IPC channels to manage system hardware and filesystem I/O safely.
 
   <p align="center">
-    <img src="screenshots/architecture.png" alt="CubeLauncher Architecture" width="700">
+    <img src="public/architecture.png" alt="CubeLauncher Architecture" width="700">
   </p>
 
   ## Tech Stack
@@ -60,7 +60,7 @@
   <summary>🇺🇦 <strong>Українська</strong></summary>
 
   <p align="center">
-    <img src="screenshots/logo.png" alt="CubeLauncher Logo" width="200">
+    <img src="public/logo.png" alt="CubeLauncher Logo" width="200">
   </p>
 
   <h1 align="center">CubeLauncher</h1>
