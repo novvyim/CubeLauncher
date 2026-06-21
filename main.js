@@ -90,6 +90,9 @@ function createWindow() {
   const server = http.createServer((req, res) => {
     let urlPath = req.url.split('?')[0];
     if (urlPath === '/') urlPath = '/index.html';
+    
+    urlPath = urlPath.replace(/\.\./g, '');
+    
     let filePath = path.join(__dirname, 'out', urlPath);
     
     if (!fs.existsSync(filePath)) {
