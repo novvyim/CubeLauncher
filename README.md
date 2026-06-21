@@ -10,7 +10,7 @@
 
 <p align="center">
   <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-blue.svg?cacheSeconds=2592000" />
-  <img alt="License" src="https://img.shields.io/badge/License-MIT-green.svg" />
+  <img alt="License" src="https://img.shields.io/badge/License-GPL--3.0-blue.svg" />
   <img alt="Electron" src="https://img.shields.io/badge/Electron-Latest-312450.svg?logo=electron" />
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js-React-black.svg?logo=next.js" />
 </p>
