@@ -7,7 +7,7 @@ const { spawn, exec } = require('child_process');
 const util = require('util');
 const pidusage = require('pidusage');
 const chokidar = require('chokidar');
-const isDev = require('electron-is-dev');
+const isDev = !app.isPackaged;
 const archiver = require('archiver');
 const { Rcon } = require('rcon-client');
 const execPromise = util.promisify(exec);
@@ -96,6 +96,7 @@ function createWindow() {
 
   if (isDev) {
     mainWindow.loadURL('http://localhost:3000');
+    mainWindow.webContents.openDevTools();
   } else {
     const server = http.createServer((req, res) => {
       let urlPath = req.url.split('?')[0];
@@ -135,6 +136,10 @@ function createWindow() {
       mainWindow.loadURL(`http://127.0.0.1:${port}`);
     });
   }
+
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    console.log(`[Renderer] ${message} (line ${line})`);
+  });
 }
     
 
