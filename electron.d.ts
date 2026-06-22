@@ -54,22 +54,31 @@ export interface ElectronAPI {
   getJavaPath: () => Promise<string>;
   setJavaPath: (execPath: string) => Promise<void>;
   startServer: (jarName: string) => Promise<boolean>;
-  stopServer: () => Promise<boolean>;
-  sendCommand: (cmd: string) => Promise<boolean>;
-  onServerLog: (callback: (data: string) => void) => () => void;
-  getLogs: () => Promise<string[]>;
+  stopServer: (serverId?: string) => Promise<boolean>;
+  sendCommand: (serverId: string, cmd: string) => Promise<boolean>;
+  rconCommand: (serverId: string, cmd: string) => Promise<{success: boolean, response?: string, error?: string}>;
+  createBackup: (serverId: string, paths: string[]) => Promise<{success: boolean, file?: string, size?: number, error?: string}>;
+  onServerLog: (callback: (data: { serverId: string, log: string }) => void) => () => void;
+  getLogs: (serverId?: string) => Promise<string[]>;
   onJavaError: (callback: (data: { detected: string, required: number }) => void) => () => void;
   onJavaFallback: (callback: (data: string) => void) => () => void;
-  onServerStats: (callback: (data: { activeServers: number, ramUsed: number, tps: string }) => void) => () => void;
+  onServerStats: (callback: (data: { activeServers: string[], cpu: string, ramUsed: number, tps: string, details?: Record<string, { cpu: number, ramUsed: number }> }) => void) => () => void;
   readWorkspace: () => Promise<FileNode[]>;
   readFile: (filePath: string) => Promise<string>;
   saveFile: (filePath: string, content: string) => Promise<boolean>;
-  downloadCore: (coreType: 'paper' | 'fabric', mcVersion: string) => Promise<DownloadResult>;
+  downloadCore: (coreType: 'paper' | 'fabric' | 'vanilla' | 'forge', mcVersion: string, build?: string) => Promise<DownloadResult>;
   searchModrinth: (opts: SearchOptions) => Promise<SearchResult>;
   downloadPlugin: (projectId: string, coreType: string, mcVersion: string) => Promise<DownloadResult>;
   checkInstalled: (fileName: string, coreType: string) => Promise<boolean>;
   onDownloadProgress: (callback: (data: { id: string; percent: number; fileName: string }) => void) => () => void;
   onDownloadComplete: (callback: (id: string) => void) => () => void;
+  searchStore: (opts: StoreSearchOpts) => Promise<StoreSearchResult>;
+  openExternal: (url: string) => Promise<void>;
+  getJavaVersion: () => Promise<string | null>;
+  getAikarFlags: () => Promise<boolean>;
+  setAikarFlags: (val: boolean) => Promise<void>;
+  onLocalFilesChanged: (callback: (files: string[]) => void) => () => void;
+  selectCustomJar: () => Promise<string | null>;
 }
 declare global {
   interface Window {

@@ -185,6 +185,15 @@ async function getVanillaDownload(mcVersion) {
   const fileName = `server-${mcVersion}.jar`;
   return { url: serverDl.url, fileName };
 }
+async function getForgeDownload(mcVersion, build) {
+  let versionStr = `${mcVersion}-${build}`;
+  const oldVersions = ['1.8.9', '1.7.10', '1.7.2', '1.6.4'];
+  if (oldVersions.includes(mcVersion)) {
+    versionStr = `${mcVersion}-${build}-${mcVersion}`;
+  }
+  const url = `https://maven.minecraftforge.net/net/minecraftforge/forge/${versionStr}/forge-${versionStr}-installer.jar`;
+  return { url, fileName: `forge-installer.jar`, build };
+}
 
 module.exports = {
   httpGet,
@@ -192,6 +201,7 @@ module.exports = {
   getPaperDownload,
   getFabricDownload,
   getVanillaDownload,
+  getForgeDownload,
   searchModrinth,
   getModrinthDownload,
 };

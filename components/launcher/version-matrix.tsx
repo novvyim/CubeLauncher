@@ -11,8 +11,11 @@ const CORE_ACCENT: Record<CoreId, string> = {
   forge: "text-chart-4",
   fabric: "text-chart-2",
 }
-const DOWNLOADABLE_CORES = new Set<CoreId>(["paper", "fabric", "vanilla"])
+const DOWNLOADABLE_CORES = new Set<CoreId>(["paper", "fabric", "vanilla", "forge"])
+import { useTranslation } from "react-i18next"
+
 export function VersionMatrix() {
+  const { t } = useTranslation()
   const [query, setQuery] = useState("")
   const rows = VERSIONS.filter((v) => v.version.includes(query.trim()))
   const { downloadCore, downloads, isElectron, serverPath, onServerStats, getJavaVersion, selectCustomJar } = useElectron()
@@ -47,7 +50,7 @@ export function VersionMatrix() {
       mounted = false
     }
   }, [getJavaVersion])
-  const handleCreate = async (coreId: CoreId, mcVersion: string) => {
+  const handleCreate = async (coreId: CoreId, mcVersion: string, build?: string) => {
     if (!DOWNLOADABLE_CORES.has(coreId)) {
       return
     }
@@ -59,7 +62,7 @@ export function VersionMatrix() {
       console.warn("No server directory configured")
       return
     }
-    await downloadCore(coreId as "paper" | "fabric" | "vanilla", mcVersion)
+    await downloadCore(coreId as "paper" | "fabric" | "vanilla" | "forge", mcVersion, build)
   }
   const numActive = stats.activeServers?.length || 0
 
@@ -126,7 +129,7 @@ export function VersionMatrix() {
       </div>
       {}
       <div id="quick-create">
-        <h2 className="mb-3 font-heading text-sm font-semibold text-foreground">Quick Create</h2>
+        <h2 className="mb-3 font-heading text-sm font-semibold text-foreground">{t('matrix.quick_create')}</h2>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {CORES.map((core, i) => {
             const canDownload = DOWNLOADABLE_CORES.has(core.id)
@@ -160,7 +163,7 @@ export function VersionMatrix() {
                 </div>
                 <p className="mt-3 font-heading text-sm font-semibold text-card-foreground">{core.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {isDownloading ? "Downloading…" : !canDownload ? "Coming soon" : core.tagline}
+                  {isDownloading ? t('matrix.downloading') : !canDownload ? t('matrix.coming_soon') : core.tagline}
                 </p>
               </button>
             )
@@ -175,9 +178,9 @@ export function VersionMatrix() {
                 <Plus className="size-4" />
               </span>
             </div>
-            <p className="mt-3 font-heading text-sm font-semibold text-card-foreground group-hover:text-primary transition-colors">Custom Core</p>
+            <p className="mt-3 font-heading text-sm font-semibold text-card-foreground group-hover:text-primary transition-colors">{t('matrix.custom_core')}</p>
             <p className="text-xs text-muted-foreground">
-              Select existing .jar
+              {t('matrix.select_jar')}
             </p>
           </button>
         </div>
@@ -186,22 +189,22 @@ export function VersionMatrix() {
       <div className="rounded-xl border border-border bg-card">
         <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="font-heading text-sm font-semibold text-card-foreground">Version Matrix</h2>
-            <p className="text-xs text-muted-foreground">All Minecraft versions mapped to server cores</p>
+            <h2 className="font-heading text-sm font-semibold text-card-foreground">{t('matrix.title')}</h2>
+            <p className="text-xs text-muted-foreground">{t('matrix.subtitle')}</p>
           </div>
           <div className="relative w-full sm:w-56">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search version…"
+              placeholder={t('matrix.search')}
               className="h-9 w-full rounded-lg border border-input bg-background pr-3 pl-8 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
             />
           </div>
         </div>
         {}
         <div className="grid grid-cols-[1.2fr_repeat(4,1fr)] gap-2 border-b border-border px-4 py-2.5">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Version</span>
+          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{t('matrix.version')}</span>
           {CORES.map((c) => (
             <span key={c.id} className="text-center text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {c.name}
@@ -215,7 +218,7 @@ export function VersionMatrix() {
                 <span className="font-mono text-sm font-medium text-foreground">{row.version}</span>
                 {row.latest && (
                   <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                    Latest
+                    {t('matrix.latest')}
                   </span>
                 )}
               </div>
@@ -243,7 +246,7 @@ export function VersionMatrix() {
                         render={
                           <button
                             disabled={!canDl || isActive}
-                            onClick={() => handleCreate(core.id, row.version)}
+                            onClick={() => handleCreate(core.id, row.version, cell.build)}
                             className={cn(
                               "group flex items-center gap-1.5 rounded-md border border-border bg-secondary/60 px-2.5 py-1 transition-colors",
                               canDl && !isActive && "hover:border-primary/60 hover:bg-primary/10",

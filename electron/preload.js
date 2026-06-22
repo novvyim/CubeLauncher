@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startServer: (jarName) => ipcRenderer.invoke('server:start', jarName),
   stopServer: (serverId) => ipcRenderer.invoke('server:stop', serverId),
   sendCommand: (serverId, cmd) => ipcRenderer.invoke('server:command', serverId, cmd),
+  rconCommand: (serverId, cmd) => ipcRenderer.invoke('rcon:command', serverId, cmd),
+  createBackup: (serverId, paths) => ipcRenderer.invoke('server:backup', serverId, paths),
   getLogs: (serverId) => ipcRenderer.invoke('sys:getLogs', serverId),
   onServerLog: (callback) => {
     const handler = (_event, data) => callback(data);
@@ -42,8 +44,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readWorkspace: () => ipcRenderer.invoke('fs:readWorkspace'),
   readFile: (filePath) => ipcRenderer.invoke('fs:readFile', filePath),
   saveFile: (filePath, content) => ipcRenderer.invoke('fs:saveFile', filePath, content),
-  downloadCore: (coreType, mcVersion) =>
-    ipcRenderer.invoke('core:download', coreType, mcVersion),
+  downloadCore: (coreType, mcVersion, build) =>
+    ipcRenderer.invoke('core:download', coreType, mcVersion, build),
   searchStore: (opts) => ipcRenderer.invoke('store:search', opts),
   searchModrinth: (opts) => ipcRenderer.invoke('store:search', opts),
   downloadPlugin: (projectId, coreType, mcVersion) => ipcRenderer.invoke('store:download', projectId, coreType, mcVersion),

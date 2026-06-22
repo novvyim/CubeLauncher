@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -8,6 +8,8 @@ const util = require('util');
 const pidusage = require('pidusage');
 const chokidar = require('chokidar');
 const isDev = require('electron-is-dev');
+const archiver = require('archiver');
+const { Rcon } = require('rcon-client');
 const execPromise = util.promisify(exec);
 const activeServers = new Map();
 
@@ -31,15 +33,19 @@ setInterval(async () => {
     let totalCpu = 0;
     let totalRam = 0;
     const serverDetails = {};
-    for (const [serverId, srv] of activeServers.entries()) {
-      if (srv.process && srv.process.pid) {
-        try {
-          const s = await pidusage(srv.process.pid);
+    const pids = Array.from(activeServers.entries())
+      .filter(([_, srv]) => srv.process && srv.process.pid)
+      .map(([id, srv]) => ({ id, pid: srv.process.pid }));
+    if (pids.length > 0) {
+      const results = await Promise.allSettled(pids.map(p => pidusage(p.pid)));
+      results.forEach((res, i) => {
+        if (res.status === 'fulfilled') {
+          const s = res.value;
           totalCpu += s.cpu;
           totalRam += s.memory;
-          serverDetails[serverId] = { cpu: s.cpu, ramUsed: s.memory };
-        } catch (err) {}
-      }
+          serverDetails[pids[i].id] = { cpu: s.cpu, ramUsed: s.memory };
+        }
+      });
     }
     const stats = {
       activeServers: Array.from(activeServers.keys()),
@@ -55,6 +61,7 @@ const {
   getPaperDownload,
   getFabricDownload,
   getVanillaDownload,
+  getForgeDownload,
   downloadFile,
   searchModrinth,
   getModrinthDownload,
@@ -87,43 +94,47 @@ function createWindow() {
     },
   });
 
-  const server = http.createServer((req, res) => {
-    let urlPath = req.url.split('?')[0];
-    if (urlPath === '/') urlPath = '/index.html';
-    
-    urlPath = urlPath.replace(/\.\./g, '');
-    
-    let filePath = path.join(__dirname, 'out', urlPath);
-    
-    if (!fs.existsSync(filePath)) {
-      filePath = path.join(__dirname, 'out', 'index.html');
-    }
-
-    const extname = String(path.extname(filePath)).toLowerCase();
-    const mimeTypes = {
-      '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-      '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpg',
-      '.gif': 'image/gif', '.svg': 'image/svg+xml', '.wav': 'audio/wav',
-      '.mp4': 'video/mp4', '.woff': 'application/font-woff',
-      '.woff2': 'application/font-woff2', '.ttf': 'application/font-ttf'
-    };
-
-    const contentType = mimeTypes[extname] || 'application/octet-stream';
-    fs.readFile(filePath, (error, content) => {
-      if (!error) {
-        res.writeHead(200, { 'Content-Type': contentType });
-        res.end(content, 'utf-8');
-      } else {
-        res.writeHead(500);
-        res.end();
+  if (isDev) {
+    mainWindow.loadURL('http://localhost:3000');
+  } else {
+    const server = http.createServer((req, res) => {
+      let urlPath = req.url.split('?')[0];
+      if (urlPath === '/') urlPath = '/index.html';
+      
+      urlPath = urlPath.replace(/\.\./g, '');
+      
+      let filePath = path.join(__dirname, 'out', urlPath);
+      
+      if (!fs.existsSync(filePath)) {
+        filePath = path.join(__dirname, 'out', 'index.html');
       }
-    });
-  });
 
-  server.listen(0, '127.0.0.1', () => {
-    const port = server.address().port;
-    mainWindow.loadURL(`http://127.0.0.1:${port}`);
-  });
+      const extname = String(path.extname(filePath)).toLowerCase();
+      const mimeTypes = {
+        '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
+        '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpg',
+        '.gif': 'image/gif', '.svg': 'image/svg+xml', '.wav': 'audio/wav',
+        '.mp4': 'video/mp4', '.woff': 'application/font-woff',
+        '.woff2': 'application/font-woff2', '.ttf': 'application/font-ttf'
+      };
+
+      const contentType = mimeTypes[extname] || 'application/octet-stream';
+      fs.readFile(filePath, (error, content) => {
+        if (!error) {
+          res.writeHead(200, { 'Content-Type': contentType });
+          res.end(content, 'utf-8');
+        } else {
+          res.writeHead(500);
+          res.end();
+        }
+      });
+    });
+
+    server.listen(0, '127.0.0.1', () => {
+      const port = server.address().port;
+      mainWindow.loadURL(`http://127.0.0.1:${port}`);
+    });
+  }
 }
     
 
@@ -331,14 +342,23 @@ ipcMain.handle('server:start', async (event, jarName) => {
     if (portMatch) currentPort = parseInt(portMatch[1], 10);
     
     if (activeServers.size > 0 && (!portMatch || currentPort === 25565)) {
-      const newPort = 25565 + activeServers.size;
+      currentPort = 25565 + activeServers.size;
       if (portMatch) {
-        propsContent = propsContent.replace(/server-port=\d+/, `server-port=${newPort}`);
+        propsContent = propsContent.replace(/server-port=\d+/, `server-port=${currentPort}`);
       } else {
-        propsContent += `\nserver-port=${newPort}\n`;
+        propsContent += `\nserver-port=${currentPort}\n`;
       }
-      fs.writeFileSync(propsPath, propsContent, 'utf-8');
     }
+
+    const rconPort = currentPort + 1000;
+    const rconPassword = 'pwd' + Math.random().toString(36).substring(2, 8);
+    
+    propsContent = propsContent.replace(/enable-rcon=(true|false)\n?/g, '');
+    propsContent = propsContent.replace(/rcon\.port=\d+\n?/g, '');
+    propsContent = propsContent.replace(/rcon\.password=.*\n?/g, '');
+    propsContent += `\nenable-rcon=true\nrcon.port=${rconPort}\nrcon.password=${rconPassword}\n`;
+
+    fs.writeFileSync(propsPath, propsContent, 'utf-8');
 
     const allocatedRam = s.get('allocatedRam') || 4;
     const jarPath = path.join(baseDir, jarName);
@@ -363,22 +383,93 @@ ipcMain.handle('server:start', async (event, jarName) => {
       );
     }
     
+    const isForge = jarName.includes('forge-') && jarName.includes('-shim');
+    if (isForge) {
+      const forgeServerDir = baseDir;
+      const eulaPathForge = path.join(forgeServerDir, 'eula.txt');
+      fs.writeFileSync(eulaPathForge, 'eula=true\n', 'utf-8');
+      const propsPathForge = path.join(forgeServerDir, 'server.properties');
+      if (!fs.existsSync(propsPathForge)) {
+        fs.writeFileSync(propsPathForge, propsContent, 'utf-8');
+      }
+      
+      const winArgsGlob = fs.readdirSync(forgeServerDir, { recursive: true }).find(f => typeof f === 'string' && f.endsWith('win_args.txt'));
+      if (winArgsGlob) {
+        javaArgs.push('@user_jvm_args.txt', `@${winArgsGlob}`, 'nogui');
+      } else {
+        javaArgs.push('-jar', jarPath, 'nogui');
+      }
+      
+      const proc = spawn(javaExec, javaArgs, {
+        cwd: forgeServerDir,
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+
+      activeServers.set(serverId, { 
+        process: proc, 
+        logBuffer: [], 
+        rconPort, 
+        rconPassword,
+        rconClient: null 
+      });
+
+      proc.stdout.on('data', (d) => sendLog(serverId, d));
+      proc.stderr.on('data', (d) => sendLog(serverId, d));
+      proc.on('close', (code) => {
+        sendLog(serverId, `\n[System] Server process exited with code ${code}\n`);
+        if (code !== 0 && code !== null) {
+          new Notification({
+            title: 'CubeLauncher: Ошибка сервера',
+            body: `Сервер ${serverId} неожиданно завершил работу (код ${code}).`
+          }).show();
+        }
+        const srv = activeServers.get(serverId);
+        if (srv && srv.rconClient) srv.rconClient.end().catch(() => {});
+        activeServers.delete(serverId);
+      });
+      proc.on('error', (err) => {
+        sendLog(serverId, `\n[System Error] Failed to start server: ${err.message}\n`);
+        activeServers.delete(serverId);
+      });
+      return serverId;
+    }
+
     javaArgs.push('-jar', jarPath, 'nogui');
     const process = spawn(javaExec, javaArgs, {
       cwd: serverDir,
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
-    activeServers.set(serverId, { process, logBuffer: [] });
+    activeServers.set(serverId, { 
+      process, 
+      logBuffer: [], 
+      rconPort, 
+      rconPassword,
+      rconClient: null 
+    });
 
     process.stdout.on('data', (d) => sendLog(serverId, d));
     process.stderr.on('data', (d) => sendLog(serverId, d));
     process.on('close', (code) => {
       sendLog(serverId, `\n[System] Server process exited with code ${code}\n`);
+      if (code !== 0 && code !== null) {
+        new Notification({
+          title: 'CubeLauncher: Ошибка сервера',
+          body: `Сервер ${serverId} неожиданно завершил работу (код ${code}). Проверьте консоль.`
+        }).show();
+      }
+      const srv = activeServers.get(serverId);
+      if (srv && srv.rconClient) {
+        srv.rconClient.end().catch(() => {});
+      }
       activeServers.delete(serverId);
     });
     process.on('error', (err) => {
       sendLog(serverId, `\n[System Error] Failed to start server: ${err.message}\n`);
+      const srv = activeServers.get(serverId);
+      if (srv && srv.rconClient) {
+        srv.rconClient.end().catch(() => {});
+      }
       activeServers.delete(serverId);
     });
 
@@ -403,6 +494,93 @@ ipcMain.handle('server:command', async (_event, serverId, cmd) => {
     return true;
   }
   return false;
+});
+
+ipcMain.handle('rcon:command', async (_event, serverId, cmd) => {
+  const srv = activeServers.get(serverId);
+  if (!srv) return { success: false, error: 'Server not running' };
+  
+  if (!srv.rconClient) {
+    try {
+      srv.rconClient = await Rcon.connect({
+        host: '127.0.0.1',
+        port: srv.rconPort,
+        password: srv.rconPassword
+      });
+      srv.rconClient.on('error', (err) => {
+        console.warn(`[RCON Error] ${err.message}`);
+        srv.rconClient = null;
+      });
+    } catch(err) {
+      return { success: false, error: 'RCON connection failed: ' + err.message };
+    }
+  }
+
+  try {
+    const response = await srv.rconClient.send(cmd);
+    return { success: true, response };
+  } catch (err) {
+    srv.rconClient = null;
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('server:backup', async (_event, serverId, includePaths) => {
+  try {
+    const s = await getStore();
+    const baseDir = s.get('serverPath');
+    if (!baseDir) return { success: false, error: 'No server path' };
+    
+    const isForge = serverId.includes('forge-') && serverId.includes('-shim');
+    const subFolder = serverId.replace('.jar', '');
+    const serverDir = isForge ? baseDir : path.join(baseDir, subFolder);
+    const backupsDir = path.join(baseDir, 'backups');
+    if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
+    
+    const dateStr = new Date().toISOString().replace(/[:.]/g, '-');
+    const zipName = `backup-${subFolder}-${dateStr}.zip`;
+    const zipPath = path.join(backupsDir, zipName);
+    
+    return new Promise((resolve, reject) => {
+      const output = fs.createWriteStream(zipPath);
+      const archive = archiver('zip', { zlib: { level: 5 } });
+      
+      output.on('close', () => resolve({ success: true, file: zipName, size: archive.pointer() }));
+      archive.on('error', (err) => resolve({ success: false, error: err.message }));
+      
+      archive.pipe(output);
+      
+      function appendRecursive(basePath, relativeName) {
+        try {
+          if (!fs.existsSync(basePath)) return;
+          const stat = fs.statSync(basePath);
+          if (stat.isDirectory()) {
+            const children = fs.readdirSync(basePath);
+            for (const child of children) {
+              appendRecursive(path.join(basePath, child), path.join(relativeName, child).replace(/\\/g, '/'));
+            }
+          } else {
+            try {
+              const fd = fs.openSync(basePath, 'r');
+              fs.closeSync(fd);
+              archive.file(basePath, { name: relativeName });
+            } catch (err) {
+              console.warn(`Skipping locked file: ${basePath}`);
+            }
+          }
+        } catch (err) {
+          console.warn(`Skipping locked directory/file: ${basePath}`);
+        }
+      }
+
+      for (const p of includePaths) {
+        appendRecursive(path.join(serverDir, p), p);
+      }
+      archive.finalize();
+    });
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 });
 ipcMain.handle('fs:checkLocalFiles', async () => {
   try {
@@ -503,7 +681,7 @@ ipcMain.handle('fs:saveFile', async (_event, filePath, content) => {
     throw err;
   }
 });
-ipcMain.handle('core:download', async (_event, coreType, mcVersion) => {
+ipcMain.handle('core:download', async (_event, coreType, mcVersion, build) => {
   try {
     const s = await getStore();
     const serverDir = s.get('serverPath');
@@ -521,6 +699,9 @@ ipcMain.handle('core:download', async (_event, coreType, mcVersion) => {
       case 'vanilla':
         downloadInfo = await getVanillaDownload(mcVersion);
         break;
+      case 'forge':
+        downloadInfo = await getForgeDownload(mcVersion, build);
+        break;
       default:
         return { success: false, error: `Unsupported core type: "${coreType}"` };
     }
@@ -529,6 +710,23 @@ ipcMain.handle('core:download', async (_event, coreType, mcVersion) => {
     await downloadFile(downloadInfo.url, destPath, (percent) => {
       sendProgress(progressId, percent, downloadInfo.fileName);
     });
+
+    if (coreType === 'forge') {
+      sendProgress(progressId, 100, "Installing Forge...");
+      const javaCheck = await checkJavaVersion();
+      const javaExec = javaCheck.javaExec || 'java';
+      await execPromise(`"${javaExec}" -jar "${destPath}" --installServer`, { cwd: serverDir, maxBuffer: 50 * 1024 * 1024 });
+      fs.unlinkSync(destPath);
+      const logPath = destPath + '.log';
+      if (fs.existsSync(logPath)) fs.unlinkSync(logPath);
+      
+      const files = fs.readdirSync(serverDir);
+      let runScript = files.find(f => f === 'run.bat' || f === 'run.sh' || (f.startsWith('forge-') && f.endsWith('.jar')));
+      if (runScript) {
+        return { success: true, filePath: path.join(serverDir, runScript) };
+      }
+    }
+
     const window = BrowserWindow.getAllWindows()[0];
     if (window && !window.isDestroyed()) {
       window.webContents.send('download-complete', progressId);

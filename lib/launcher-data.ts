@@ -85,8 +85,17 @@ export const VERSIONS: VersionRow[] = [
     version: "1.12.2",
     cores: {
       vanilla: { available: true },
-      paper: { available: false },
-      forge: { available: true, build: "14.23.5" },
+      paper: { available: true, build: "#1620" },
+      forge: { available: true, build: "14.23.5.2860" },
+      fabric: { available: false },
+    },
+  },
+  {
+    version: "1.8.9",
+    cores: {
+      vanilla: { available: true },
+      paper: { available: true, build: "#445" },
+      forge: { available: true, build: "11.15.1.2318" },
       fabric: { available: false },
     },
   },

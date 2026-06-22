@@ -12,13 +12,15 @@ import {
 import { VERSIONS } from "@/lib/launcher-data"
 import { LayoutGrid, Store, FolderTree, Settings, Download } from "lucide-react"
 import { type View } from "@/components/launcher/sidebar"
+import type { Dispatch, SetStateAction } from "react"
+
 export function GlobalCommand({
   open,
   setOpen,
   onNavigate,
 }: {
   open: boolean
-  setOpen: (open: boolean) => void
+  setOpen: Dispatch<SetStateAction<boolean>>
   onNavigate: (view: View) => void
 }) {
   useEffect(() => {

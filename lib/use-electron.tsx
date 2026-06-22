@@ -8,7 +8,7 @@ export interface DownloadState {
   id: string
   fileName: string
   percent: number
-  status: "downloading" | "done" | "error"
+  status: "downloading" | "finishing" | "done" | "error"
   error?: string
 }
 interface ElectronContextValue {
@@ -16,9 +16,9 @@ interface ElectronContextValue {
   serverPath: string | null
   initializing: boolean
   runningServers: string[]
-  selectFolder: () => Promise<void>
+  selectFolder: () => Promise<string | void | null>
   selectFile: () => Promise<string | null>
-  downloadCore: (coreType: "paper" | "fabric" | "vanilla", mcVersion: string) => Promise<{ success: boolean; filePath?: string; error?: string }>
+  downloadCore: (coreType: "paper" | "fabric" | "vanilla" | "forge", mcVersion: string, build?: string) => Promise<{ success: boolean; filePath?: string; error?: string }>
   downloads: Record<string, DownloadState>
   minimizeWindow: () => void
   maximizeWindow: () => void
@@ -28,9 +28,11 @@ interface ElectronContextValue {
   setSavedRam: (ramGb: number) => Promise<void>
   getJavaPath: () => Promise<string | null>
   setJavaPath: (execPath: string) => Promise<void>
-  startServer: (jarName: string) => Promise<string | null>
+  startServer: (jarName: string) => Promise<boolean | null>
   stopServer: (serverId: string) => Promise<boolean>
   sendCommand: (serverId: string, cmd: string) => Promise<boolean>
+  rconCommand: (serverId: string, cmd: string) => Promise<{success: boolean, response?: string, error?: string}>
+  createBackup: (serverId: string, paths: string[]) => Promise<{success: boolean, file?: string, size?: number, error?: string}>
   getLogs: (serverId: string) => Promise<string[]>
   onServerLog?: (callback: (data: { serverId: string, log: string }) => void) => () => void
   onJavaError?: (callback: (data: { detected: string, required: number }) => void) => () => void
@@ -161,14 +163,14 @@ export function ElectronProvider({ children }: { children: ReactNode }) {
     }
     let cancelled = false
     async function init() {
+      if (!api) return
       try {
-        const path = await api!.getServerPath()
+        const path = await api.getServerPath()
         if (cancelled) return
         if (path) {
           setServerPath(path)
-          if (api.checkLocalFiles) {
-            const files = await api.checkLocalFiles()
-            const initDownloads: Record<string, DownloadState> = {}
+          const files = await api.checkLocalFiles()
+          const initDownloads: Record<string, DownloadState> = {}
             for (const file of files) {
               let id = null
               if (file.startsWith('paper-')) {
@@ -177,6 +179,9 @@ export function ElectronProvider({ children }: { children: ReactNode }) {
               } else if (file.startsWith('fabric-server-mc.')) {
                 const match = file.match(/fabric-server-mc\.([^-]+)/)
                 if (match) id = `core-fabric-${match[1]}`
+              } else if (file.startsWith('forge-') && file.endsWith('-shim.jar')) {
+                const match = file.match(/forge-([^-]+)-/)
+                if (match) id = `core-forge-${match[1]}`
               }
               if (id) {
                 initDownloads[id] = { id, fileName: file, percent: 100, status: "done" }
@@ -192,14 +197,12 @@ export function ElectronProvider({ children }: { children: ReactNode }) {
             if (Object.keys(initDownloads).length > 0) {
               setDownloads(prev => ({ ...prev, ...initDownloads }))
             }
-          }
         } else {
-          const selected = await api!.selectFolder()
+          const selected = await api.selectFolder()
           if (!cancelled && selected) {
             setServerPath(selected)
-            if (api!.checkLocalFiles) {
-              const files = await api!.checkLocalFiles()
-              const initDownloads: Record<string, DownloadState> = {}
+            const files = await api.checkLocalFiles()
+            const initDownloads: Record<string, DownloadState> = {}
               for (const file of files) {
                 let id = null
                 if (file.startsWith('paper-')) {
@@ -223,7 +226,6 @@ export function ElectronProvider({ children }: { children: ReactNode }) {
               if (Object.keys(initDownloads).length > 0) {
                 setDownloads(initDownloads)
               }
-            }
           }
         }
       } catch (err) {
@@ -273,14 +275,14 @@ export function ElectronProvider({ children }: { children: ReactNode }) {
     return await api.selectFile()
   }, [api])
   const downloadCore = useCallback(
-    async (coreType: "paper" | "fabric" | "vanilla", mcVersion: string) => {
+    async (coreType: "paper" | "fabric" | "vanilla" | "forge", mcVersion: string, build?: string) => {
       if (!api) return { success: false, error: "Not running in Electron" }
       const id = `core-${coreType}-${mcVersion}`
       setDownloads((prev) => ({
         ...prev,
         [id]: { id, fileName: `${coreType}-${mcVersion}.jar`, percent: 0, status: "downloading" },
       }))
-      const result = await api.downloadCore(coreType, mcVersion)
+      const result = await api.downloadCore(coreType, mcVersion, build)
       setDownloads((prev) => ({
         ...prev,
         [id]: {
@@ -311,6 +313,8 @@ export function ElectronProvider({ children }: { children: ReactNode }) {
   const startServer = useCallback(async (j: string) => (api?.startServer ? await api.startServer(j) : null), [api])
   const stopServer = useCallback(async (s: string) => (api?.stopServer ? await api.stopServer(s) : false), [api])
   const sendCommand = useCallback(async (s: string, c: string) => (api?.sendCommand ? await api.sendCommand(s, c) : false), [api])
+  const rconCommand = useCallback(async (s: string, c: string) => (api?.rconCommand ? await api.rconCommand(s, c) : {success: false}), [api])
+  const createBackup = useCallback(async (s: string, p: string[]) => (api?.createBackup ? await api.createBackup(s, p) : {success: false}), [api])
   const getLogs = useCallback(async (s: string) => (api?.getLogs ? await api.getLogs(s) : []), [api])
   const saveConfig = useCallback(async (data: any) => (api?.saveConfig ? await api.saveConfig(data) : false), [api])
   const readConfig = useCallback(async () => (api?.readConfig ? await api.readConfig() : null), [api])
@@ -347,6 +351,8 @@ export function ElectronProvider({ children }: { children: ReactNode }) {
         startServer,
         stopServer,
         sendCommand,
+        rconCommand,
+        createBackup,
         getLogs,
         saveConfig,
         readConfig,

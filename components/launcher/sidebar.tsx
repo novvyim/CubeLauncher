@@ -10,14 +10,17 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Boxes, LayoutGrid, Store, FolderTree, Settings, Cpu, Loader2, FolderOpen, Play, Server, Terminal, Square, Check, Heart } from "lucide-react"
-export type View = "dashboard" | "store" | "files" | "settings" | "console"
-const NAV: { id: View; label: string; icon: any; hint: string }[] = [
+import { useTranslation } from "react-i18next"
+import { Boxes, LayoutGrid, Store, FolderTree, Settings, Cpu, Loader2, FolderOpen, Play, Server, Terminal, Square, Check, Heart, Users, Archive } from "lucide-react"
+export type View = "dashboard" | "store" | "files" | "settings" | "console" | "players" | "backups"
+const NAV: { id: View; label: string; icon: any; hint: string; beta?: boolean }[] = [
   { id: "dashboard", label: "Version Matrix", icon: LayoutGrid, hint: "Create servers" },
   { id: "store", label: "Store", icon: Store, hint: "Plugins & mods" },
   { id: "files", label: "File Explorer", icon: FolderTree, hint: "Browse & edit" },
-  { id: "settings", label: "Settings", icon: Settings, hint: "Configure" },
   { id: "console", label: "Console", icon: Terminal, hint: "View logs" },
+  { id: "players", label: "Players", icon: Users, hint: "Manage players", beta: true },
+  { id: "backups", label: "Backups", icon: Archive, hint: "Zip server data", beta: true },
+  { id: "settings", label: "Settings", icon: Settings, hint: "Configure" },
 ]
 export function Sidebar({
   view,
@@ -26,26 +29,13 @@ export function Sidebar({
   view: View
   onViewChange: (v: View) => void
 }) {
+  const { t } = useTranslation()
   const { serverPath, downloads, runningServers, selectFolder, startServer, stopServer, openExternal, getAikarFlags, setAikarFlags } = useElectron()
   const activeDownload = Object.values(downloads).find((d) => d.status === "downloading" || d.status === "finishing")
   const installedJars = Object.values(downloads).filter((d) => d.status === "done").map(d => d.fileName)
   const [selectedJar, setSelectedJar] = useState<string>("")
   const isRunning = runningServers.includes(selectedJar)
   const [isStarting, setIsStarting] = useState(false)
-  const [aikarEnabled, setAikarEnabled] = useState(false)
-
-  useEffect(() => {
-    if (getAikarFlags) {
-      getAikarFlags().then(setAikarEnabled)
-    }
-  }, [getAikarFlags])
-
-  const toggleAikar = async (val: boolean) => {
-    if (setAikarFlags) {
-      await setAikarFlags(val)
-      setAikarEnabled(val)
-    }
-  }
   useEffect(() => {
     if (installedJars.length > 0 && !selectedJar) {
       setSelectedJar(installedJars[0])
@@ -72,14 +62,14 @@ export function Sidebar({
           <Boxes className="size-5" />
         </div>
         <div className="leading-tight">
-          <p className="font-heading text-sm font-semibold text-sidebar-foreground">CubeForge</p>
-          <p className="text-xs text-muted-foreground">Server Launcher</p>
+          <p className="font-heading text-sm font-semibold text-sidebar-foreground">{t('sidebar.title')}</p>
+          <p className="text-xs text-muted-foreground">{t('sidebar.subtitle')}</p>
         </div>
       </div>
       {}
       <nav className="flex flex-1 flex-col gap-1 px-3">
         <p className="px-2 pt-3 pb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Manage
+          {t('sidebar.manage')}
         </p>
         {NAV.map((item) => {
           const Icon = item.icon
@@ -96,7 +86,8 @@ export function Sidebar({
               )}
             >
               <Icon className={cn("size-[18px]", active && "text-primary")} />
-              <span className="flex-1 text-left font-medium">{item.label}</span>
+              <span className="flex-1 text-left font-medium">{t(`sidebar.${item.id.replace('dashboard', 'version_matrix').replace('files', 'file_explorer')}`)}</span>
+              {item.beta && <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-500">Beta</span>}
               {active && <span className="size-1.5 rounded-full bg-primary shadow-[0_0_8px_var(--color-primary)]" />}
             </button>
           )
@@ -135,11 +126,11 @@ export function Sidebar({
         <div className="m-3 rounded-xl border border-sidebar-border bg-card/60 p-4">
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <Server className="size-3.5" /> Active Server
+              <Server className="size-3.5" /> {t('sidebar.active_server')}
             </span>
           </div>
             <div className="flex-1 mt-3">
-              <Select value={selectedJar} onValueChange={setSelectedJar}>
+              <Select value={selectedJar} onValueChange={(v) => setSelectedJar(v || "")}>
                 <SelectTrigger className="h-8 w-full border-border bg-card text-xs hover:bg-accent/50 focus:ring-0">
                   <SelectValue placeholder="Select Core" />
                 </SelectTrigger>
@@ -158,7 +149,7 @@ export function Sidebar({
               className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md bg-destructive/10 border border-destructive/20 px-3 py-1.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/20"
             >
               <Square className="size-3.5" fill="currentColor" />
-              Stop Server
+              {t('sidebar.stop_server')}
             </button>
           ) : (
             <button
@@ -171,7 +162,7 @@ export function Sidebar({
               ) : (
                 <Play className="size-3.5" fill="currentColor" />
               )}
-              Start Server
+              {t('sidebar.start_server')}
             </button>
           )}
         </div>
@@ -179,7 +170,7 @@ export function Sidebar({
         <div className="m-3 rounded-xl border border-sidebar-border bg-card/60 p-4">
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <Cpu className="size-3.5" /> Workspace
+              <Cpu className="size-3.5" /> {t('sidebar.workspace')}
             </span>
           </div>
           <p className="mt-1.5 truncate text-xs text-muted-foreground" title={serverPath}>
@@ -190,16 +181,8 @@ export function Sidebar({
             className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <FolderOpen className="size-3.5" />
-            Change Folder
+            {t('sidebar.change_folder')}
           </button>
-
-          <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-black/20 p-2">
-            <div className="flex flex-col">
-              <span className="text-[11px] font-medium text-foreground">Aikar's Flags</span>
-              <span className="text-[9px] text-muted-foreground">Performance Boost</span>
-            </div>
-            <Switch checked={aikarEnabled} onCheckedChange={toggleAikar} />
-          </div>
         </div>
       ) : null}
 
@@ -209,7 +192,7 @@ export function Sidebar({
           className="flex w-full items-center gap-2.5 rounded-lg border border-pink-500/20 bg-pink-500/5 px-3 py-2.5 text-sm font-medium text-pink-400 transition-all duration-300 hover:border-pink-500/40 hover:bg-pink-500/10 hover:shadow-[0_0_20px_-4px] hover:shadow-pink-500/30"
         >
           <Heart className="size-[18px]" />
-          <span>Support Author</span>
+          <span>{t('sidebar.support_author')}</span>
         </button>
       </div>
     </aside>

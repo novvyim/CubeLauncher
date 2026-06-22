@@ -10,7 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { MemoryStick, Coffee, Network, SlidersHorizontal, Save } from "lucide-react"
+import { useTranslation } from "react-i18next"
+import { MemoryStick, Coffee, Network, SlidersHorizontal, Save, Globe, Loader2 } from "lucide-react"
 function SectionCard({
   icon: Icon,
   title,
@@ -59,7 +60,8 @@ function ToggleRow({
   )
 }
 export function SettingsPanel() {
-  const { getRam, getSavedRam, setSavedRam, getJavaPath, setJavaPath, selectFile, saveConfig, readConfig } = useElectron()
+  const { t, i18n } = useTranslation()
+  const { getRam, getSavedRam, setSavedRam, getJavaPath, setJavaPath, selectFile, saveConfig, readConfig, getAikarFlags, setAikarFlags } = useElectron()
   const [maxRam, setMaxRam] = useState(32)
   const [ram, setRam] = useState(4)
   const [javaExec, setJavaExec] = useState("")
@@ -72,6 +74,9 @@ export function SettingsPanel() {
       }
       if (path !== undefined && path !== null) setJavaExec(path)
     })
+    if (getAikarFlags) {
+      getAikarFlags().then(setAikarFlagsEnabled)
+    }
     if (readConfig) {
       readConfig().then((data) => {
         if (data) {
@@ -81,12 +86,11 @@ export function SettingsPanel() {
           if (data.onlineMode !== undefined) setOnlineMode(data.onlineMode)
           if (data.pvp !== undefined) setPvp(data.pvp)
           if (data.whitelist !== undefined) setWhitelist(data.whitelist)
-          if (data.commandBlocks !== undefined) setCommandBlocks(data.commandBlocks)
         }
       })
     }
-  }, [getRam, getSavedRam, getJavaPath, readConfig])
-  const handleBrowseJava = async () => {
+  }, [getRam, getSavedRam, getJavaPath, readConfig, getAikarFlags])
+  const handleSelectJava = async () => {
     if (!selectFile) return
     const path = await selectFile()
     if (path) {
@@ -95,17 +99,17 @@ export function SettingsPanel() {
     }
   }
   const [java, setJava] = useState("21")
+  const [aikarFlagsEnabled, setAikarFlagsEnabled] = useState(false)
   const [serverPort, setServerPort] = useState("25565")
   const [queryPort, setQueryPort] = useState("25565")
   const [difficulty, setDifficulty] = useState("normal")
   const [onlineMode, setOnlineMode] = useState(true)
   const [pvp, setPvp] = useState(true)
   const [whitelist, setWhitelist] = useState(false)
-  const [commandBlocks, setCommandBlocks] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [showToast, setShowToast] = useState(false)
+  const [hardcore, setHardcore] = useState(false)
+  const [saving, setSaving] = useState(false)
   const handleSave = async () => {
-    setIsSaving(true)
+    setSaving(true)
     const configData = {
       serverPort,
       queryPort,
@@ -113,23 +117,40 @@ export function SettingsPanel() {
       onlineMode,
       pvp,
       whitelist,
-      commandBlocks
+      hardcore
     }
-    const success = await saveConfig(configData)
-    setIsSaving(false)
-    if (success) {
-      setShowToast(true)
-      setTimeout(() => setShowToast(false), 3000)
+    if (setAikarFlags) {
+      await setAikarFlags(aikarFlagsEnabled)
     }
+    await saveConfig(configData)
+    setSaving(false)
   }
   return (
-    <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {}
-        <SectionCard icon={MemoryStick} title="RAM Allocation" desc="Memory reserved for the JVM heap">
-          <div className="flex items-baseline justify-between">
-            <span className="font-heading text-3xl font-semibold tracking-tight text-primary">{ram} GB</span>
-            <span className="text-xs text-muted-foreground">of {maxRam} GB available</span>
+    <div className="flex w-full max-w-[1200px] flex-col gap-6 p-6">
+      <div className="mb-2 flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">{t('settings.title')}</h2>
+          <p className="text-sm text-muted-foreground">{t('settings.subtitle')}</p>
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+          {t('settings.save_changes')}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <SectionCard icon={MemoryStick} title={t('settings.ram_allocation')} desc={t('settings.ram_desc')}>
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-3xl font-bold tracking-tighter text-primary">
+              {ram} GB
+            </span>
+            <span className="text-xs font-medium text-muted-foreground">
+              {t('settings.of_available', { total: maxRam })}
+            </span>
           </div>
           <Slider
             className="mt-4"
@@ -147,21 +168,28 @@ export function SettingsPanel() {
             <span>1 GB</span>
             <span>{maxRam} GB</span>
           </div>
-        </SectionCard>
-        {}
-        <SectionCard icon={Coffee} title="Java Runtime" desc="Select the Java executable used to launch the server">
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              readOnly
-              value={javaExec || "System Default (java)"}
-              className="h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground outline-none cursor-default"
+          <div className="mt-6 border-t border-border pt-4">
+            <ToggleRow
+              label={t('settings.aikar_flags')}
+              desc={t('settings.aikar_desc')}
+              checked={aikarFlagsEnabled}
+              onChange={setAikarFlagsEnabled}
             />
+          </div>
+        </SectionCard>
+
+        <SectionCard icon={Coffee} title={t('settings.java_runtime')} desc={t('settings.java_desc')}>
+          <div className="flex w-full items-center gap-2">
+            <div className="flex h-10 flex-1 items-center rounded-lg border border-input bg-background px-3">
+              <span className="truncate text-sm text-muted-foreground">
+                {javaExec || t('settings.system_default')}
+              </span>
+            </div>
             <button
-              onClick={handleBrowseJava}
-              className="whitespace-nowrap rounded-md bg-secondary px-4 h-10 text-sm font-medium transition-colors hover:bg-secondary/80 text-foreground"
+              onClick={handleSelectJava}
+              className="h-10 rounded-lg bg-secondary px-4 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
             >
-              Browse
+              {t('settings.browse')}
             </button>
           </div>
           {javaExec && (
@@ -172,16 +200,31 @@ export function SettingsPanel() {
               }}
               className="mt-2 text-xs text-destructive hover:underline"
             >
-              Reset to system default
+              {t('settings.reset')}
             </button>
           )}
         </SectionCard>
       </div>
-      {}
-      <SectionCard icon={Network} title="Network" desc="Ports the server binds to for connections">
+
+      <SectionCard icon={Globe} title={t('settings.language')} desc={t('settings.language_desc')}>
+        <div className="w-full max-w-sm">
+          <Select value={i18n.language} onValueChange={(v) => v && i18n.changeLanguage(v)}>
+            <SelectTrigger className="h-10 border-input bg-card text-sm">
+              <SelectValue placeholder="Select language" />
+            </SelectTrigger>
+            <SelectContent className="border-border bg-card/95 backdrop-blur-md">
+              <SelectItem value="en">{t('settings.english')}</SelectItem>
+              <SelectItem value="ru">{t('settings.russian')}</SelectItem>
+              <SelectItem value="uk">{t('settings.ukrainian')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </SectionCard>
+
+      <SectionCard icon={Network} title={t('settings.network')} desc={t('settings.network_desc')}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Server Port</label>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{t('settings.server_port')}</label>
             <input
               value={serverPort}
               onChange={(e) => setServerPort(e.target.value.replace(/\D/g, ""))}
@@ -190,7 +233,7 @@ export function SettingsPanel() {
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Query Port</label>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{t('settings.query_port')}</label>
             <input
               value={queryPort}
               onChange={(e) => setQueryPort(e.target.value.replace(/\D/g, ""))}
@@ -200,20 +243,40 @@ export function SettingsPanel() {
           </div>
         </div>
       </SectionCard>
-      {}
-      <SectionCard icon={SlidersHorizontal} title="Server Rules" desc="Basic gameplay and security settings">
-        <div className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
-          <div className="divide-y divide-border">
-            <ToggleRow label="Online Mode" desc="Verify players against Mojang auth" checked={onlineMode} onChange={setOnlineMode} />
-            <ToggleRow label="PvP" desc="Allow players to damage each other" checked={pvp} onChange={setPvp} />
+
+      <SectionCard icon={SlidersHorizontal} title={t('settings.server_rules')} desc={t('settings.server_rules_desc')}>
+        <div className="grid gap-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <label className="text-sm font-medium">{t('settings.online_mode')}</label>
+              <p className="text-xs text-muted-foreground">{t('settings.online_mode_desc')}</p>
+            </div>
+            <Switch checked={onlineMode} onCheckedChange={setOnlineMode} />
           </div>
-          <div className="divide-y divide-border">
-            <ToggleRow label="Whitelist" desc="Only allow listed players to join" checked={whitelist} onChange={setWhitelist} />
-            <ToggleRow label="Command Blocks" desc="Enable command block execution" checked={commandBlocks} onChange={setCommandBlocks} />
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <label className="text-sm font-medium">{t('settings.whitelist')}</label>
+              <p className="text-xs text-muted-foreground">{t('settings.whitelist_desc')}</p>
+            </div>
+            <Switch checked={whitelist} onCheckedChange={setWhitelist} />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <label className="text-sm font-medium">{t('settings.pvp')}</label>
+              <p className="text-xs text-muted-foreground">{t('settings.pvp_desc')}</p>
+            </div>
+            <Switch checked={pvp} onCheckedChange={setPvp} />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <label className="text-sm font-medium">{t('settings.hardcore')}</label>
+              <p className="text-xs text-muted-foreground">{t('settings.hardcore_desc')}</p>
+            </div>
+            <Switch checked={hardcore} onCheckedChange={setHardcore} />
           </div>
         </div>
-        <div className="mt-4 border-t border-border pt-4">
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Difficulty</label>
+        <div className="mt-6 border-t border-border pt-6">
+          <label className="mb-3 block text-sm font-medium text-foreground">{t('settings.difficulty')}</label>
           <div className="grid grid-cols-4 gap-2">
             {["peaceful", "easy", "normal", "hard"].map((d) => (
               <button
@@ -231,21 +294,6 @@ export function SettingsPanel() {
           </div>
         </div>
       </SectionCard>
-      <div className="flex items-center justify-end gap-4">
-        {showToast && (
-          <span className="text-sm font-medium text-emerald-500 animate-in fade-in duration-300">
-            Saved successfully!
-          </span>
-        )}
-        <button 
-          onClick={handleSave}
-          disabled={isSaving}
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {isSaving ? <Coffee className="size-4 animate-spin" /> : <Save className="size-4" />}
-          {isSaving ? "Saving..." : "Save Configuration"}
-        </button>
-      </div>
     </div>
   )
 }

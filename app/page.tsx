@@ -1,5 +1,6 @@
 "use client"
 import { useState } from "react"
+import "@/lib/i18n"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { ElectronProvider, useElectron } from "@/lib/use-electron"
 import { Sidebar, type View } from "@/components/launcher/sidebar"
@@ -8,6 +9,8 @@ import { Store } from "@/components/launcher/store"
 import { FileExplorer } from "@/components/launcher/file-explorer"
 import { SettingsPanel } from "@/components/launcher/settings-panel"
 import { Console } from "@/components/launcher/console"
+import { Players } from "@/components/launcher/players"
+import { Backups } from "@/components/launcher/backups"
 import { GlobalCommand } from "@/components/launcher/global-command"
 import { SystemAlert } from "@/components/launcher/system-alert"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -18,6 +21,8 @@ const META: Record<View, { title: string; subtitle: string }> = {
   files: { title: "File Explorer", subtitle: "Browse the server directory and edit configs" },
   settings: { title: "Settings", subtitle: "Tune resources, network, and gameplay rules" },
   console: { title: "Console", subtitle: "Live server logs and terminal input" },
+  players: { title: "Player Manager", subtitle: "Manage online players via RCON" },
+  backups: { title: "Backup Manager", subtitle: "Create ZIP archives of your server data" },
 }
 export default function Page() {
   return (
@@ -28,9 +33,12 @@ export default function Page() {
     </ElectronProvider>
   )
 }
+import { useTranslation } from "react-i18next"
+
 function AppShell() {
   const [view, setView] = useState<View>("dashboard")
   const [cmdOpen, setCmdOpen] = useState(false)
+  const { t } = useTranslation()
   const meta = META[view] || { title: "Loading...", subtitle: "" }
   const { initializing, serverPath, selectFolder, isElectron, minimizeWindow, maximizeWindow, closeWindow } = useElectron()
   if (initializing) {
@@ -131,7 +139,7 @@ function AppShell() {
                 }}
                 className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
               >
-                <Plus className="size-4" /> New Server
+                <Plus className="size-4" /> {t('sidebar.new_server')}
               </button>
             </div>
           </header>
@@ -142,6 +150,8 @@ function AppShell() {
             {view === "files" && <FileExplorer />}
             {view === "settings" && <SettingsPanel />}
             {view === "console" && <Console />}
+            {view === "players" && <Players />}
+            {view === "backups" && <Backups />}
           </div>
         </main>
       </div>
